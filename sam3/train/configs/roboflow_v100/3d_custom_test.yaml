@@ -6,13 +6,13 @@ defaults:
 # Paths Configuration (Chage this to your own paths)
 # ============================================================================
 paths:
-  roboflow_vl_100_root: /app/data/dataset/rf_100vl
-  experiment_log_dir: /app/data/logs/sam3/roboflow
+  roboflow_vl_100_root: /app/data/dataset/3d
+  experiment_log_dir: /app/data/logs/sam3/3d
   bpe_path: /app/3rdparty/sam3/assets/bpe_simple_vocab_16e6.txt.gz
 
 # Roboflow dataset configuration
 roboflow_train:
-  num_images: 100 # Note: This is the number of images used for training. If null, all images are used.
+  num_images: null # Note: This is the number of images used for training. If null, all images are used.
   supercategory: ${all_roboflow_supercategories.${string:${submitit.job_array.task_index}}}
 
   # Training transforms pipeline
@@ -243,9 +243,9 @@ scratch:
 trainer:
 
   _target_: sam3.train.trainer.Trainer
-  skip_saving_ckpts: true
+  skip_saving_ckpts: False
   empty_gpu_mem_cache_after_eval: True
-  skip_first_val: True
+  skip_first_val: False
   max_epochs: 20
   accelerator: cuda
   seed_value: 123
@@ -437,7 +437,8 @@ submitit:
 # ============================================================================
 
 all_roboflow_supercategories:
-  - -grccs
+  - satellite
+  # - -grccs
   # - zebrasatasturias
   # - cod-mw-warzone
   # - canalstenosis
@@ -488,7 +489,7 @@ all_roboflow_supercategories:
   # - x-ray-id
   # - ball
   # - tube
-  - 2024-frc
+  # - 2024-frc
   # - crystal-clean-brain-tumors-mri-dataset
   # - grapes-5
   # - human-detection-in-floods
@@ -515,7 +516,7 @@ all_roboflow_supercategories:
   # - dentalai
   # - jellyfish
   # - deepfruits
-  - activity-diagrams
+  # - activity-diagrams
   # - circuit-voltages
   # - all-elements
   # - macro-segmentation
@@ -525,7 +526,7 @@ all_roboflow_supercategories:
   # - fruitjes
   # - grass-weeds
   # - infraredimageofpowerequipment
-  - 13-lkc01
+  # - 13-lkc01
   # - wb-prova
   # - flir-camera-objects
   # - paper-parts
