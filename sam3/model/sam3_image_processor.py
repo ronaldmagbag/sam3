@@ -51,6 +51,7 @@ class Sam3Processor:
         else:
             raise ValueError("Image must be a PIL image or a tensor")
 
+        image = image.convert("RGB")
         image = v2.functional.to_image(image).to(self.device)
         image = self.transform(image).unsqueeze(0)
 

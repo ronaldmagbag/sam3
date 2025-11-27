@@ -638,11 +638,33 @@ def build_sam3_image_model(
 
 
 def download_ckpt_from_hf():
+    """
+    Download SAM3 checkpoint from HuggingFace.
+    Models are cached in sam3/models directory.
+    
+    Returns:
+        Path to downloaded checkpoint file
+    """
     SAM3_MODEL_ID = "facebook/sam3"
     SAM3_CKPT_NAME = "sam3.pt"
     SAM3_CFG_NAME = "config.json"
-    _ = hf_hub_download(repo_id=SAM3_MODEL_ID, filename=SAM3_CFG_NAME)
-    checkpoint_path = hf_hub_download(repo_id=SAM3_MODEL_ID, filename=SAM3_CKPT_NAME)
+    
+    # Hard-coded cache directory: sam3/models
+    # __file__ is in sam3/sam3/model_builder.py, so we go up one level to sam3/, then into models/
+    cache_dir = os.path.join(os.path.dirname(__file__), "..", "models")
+    cache_dir = os.path.abspath(cache_dir)
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    _ = hf_hub_download(
+        repo_id=SAM3_MODEL_ID, 
+        filename=SAM3_CFG_NAME,
+        cache_dir=cache_dir
+    )
+    checkpoint_path = hf_hub_download(
+        repo_id=SAM3_MODEL_ID, 
+        filename=SAM3_CKPT_NAME,
+        cache_dir=cache_dir
+    )
     return checkpoint_path
 
 
