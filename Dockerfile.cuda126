@@ -1,0 +1,129 @@
+# ================================
+# Dockerfile for geoseg with CUDA 12.6 and Ubuntu
+# ================================
+FROM nvidia/cuda:12.6.0-devel-ubuntu22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    git \
+    wget \
+    curl \
+    unzip \
+    build-essential \
+    cmake \
+    libgdal-dev \
+    gdal-bin \
+    libproj-dev \
+    proj-data \
+    proj-bin \
+    libgeos-dev \
+    libspatialindex-dev \
+    libffi-dev \
+    libssl-dev \
+    ca-certificates \
+    gnupg2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python 3.12 from source (most reliable method for Docker)
+# This avoids PPA keyserver issues and ensures we get Python 3.12
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    build-essential \
+    zlib1g-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libnss3-dev \
+    libssl-dev \
+    libreadline-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    wget \
+    libbz2-dev \
+    liblzma-dev \
+    && cd /tmp && \
+    wget -q https://www.python.org/ftp/python/3.12.7/Python-3.12.7.tgz && \
+    tar -xzf Python-3.12.7.tgz && \
+    cd Python-3.12.7 && \
+    ./configure --enable-optimizations --prefix=/usr/local --with-ensurepip=install && \
+    make -j$(nproc) && \
+    make altinstall && \
+    ln -sf /usr/local/bin/python3.12 /usr/bin/python3.12 && \
+    ln -sf /usr/local/bin/python3.12 /usr/bin/python3 && \
+    ln -sf /usr/local/bin/python3.12 /usr/bin/python && \
+    cd / && rm -rf /tmp/Python-* && \
+    rm -rf /var/lib/apt/lists/*
+
+# Ensure pip is available and create symlinks
+# Python 3.12 from source includes ensurepip, but let's make sure pip is up to date
+RUN python3.12 -m ensurepip --upgrade && \
+    ln -sf /usr/local/bin/pip3.12 /usr/local/bin/pip && \
+    ln -sf /usr/local/bin/pip3.12 /usr/local/bin/pip3
+
+# Upgrade pip
+RUN python3.12 -m pip install --upgrade pip setuptools wheel
+
+# Install PyTorch 2.7+ with CUDA 12.6 support
+RUN pip install \
+    torch>=2.7.0 \
+    torchvision \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cu126
+
+# Copy requirements files
+COPY requirements-train.txt requirements-deploy.txt requirements-collect.txt ./
+
+# Install Python dependencies for training
+# Note: Install numpy==1.26 first to satisfy SAM3 requirements
+RUN pip install numpy==1.26 && \
+    pip install -r requirements-train.txt
+
+# Install additional dependencies for SAM3
+RUN pip install \
+    timm>=1.0.17 \
+    ftfy==6.1.1 \
+    regex \
+    iopath>=0.1.10 \
+    typing_extensions \
+    huggingface_hub \
+    tqdm \
+    opencv-python \
+    Pillow \
+    matplotlib \
+    jupyter \
+    notebook \
+    ipywidgets \
+    ipycanvas \
+    ipympl \
+    pycocotools \
+    decord \
+    einops \
+    scikit-image \
+    scikit-learn
+
+# Install SAM3 in editable mode
+COPY 3rdparty/sam3 /app/3rdparty/sam3
+WORKDIR /app/3rdparty/sam3
+RUN pip install -e .
+
+# Return to app directory
+WORKDIR /app
+
+
+# Expose ports
+EXPOSE 8000 8888
+
+# Default command (can be overridden)
+CMD ["/bin/bash"]
+

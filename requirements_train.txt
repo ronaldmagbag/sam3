@@ -1,0 +1,10 @@
+hydra-core
+submitit
+tensorboard
+zstandard
+scipy
+torchmetrics
+fvcore
+fairscale
+scikit-image
+scikit-learn
