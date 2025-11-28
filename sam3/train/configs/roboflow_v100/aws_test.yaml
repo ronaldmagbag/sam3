@@ -202,7 +202,7 @@ scratch:
   # Training parameters
   num_train_workers: 1
   num_val_workers: 0
-  max_data_epochs: 20
+  max_data_epochs: 10
   target_epoch_size: 1500
   hybrid_repeats: 1
   context_length: 2
@@ -424,12 +424,12 @@ submitit:
   qos: null
   timeout_hour: 72
   use_cluster: True
-  cpus_per_task: 10
+  cpus_per_task: 7
   port_range: [10000, 65000]
   constraint: null
   # Uncomment for job array configuration
   job_array:
-    num_tasks: 100
+    num_tasks: 50
     task_index: 0
 
 # ============================================================================
