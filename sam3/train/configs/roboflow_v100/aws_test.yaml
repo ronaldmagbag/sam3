@@ -6,9 +6,9 @@ defaults:
 # Paths Configuration (Chage this to your own paths)
 # ============================================================================
 paths:
-  roboflow_vl_100_root: ~/sam3/datasets
-  experiment_log_dir: ~/sam3/datasets/logs/3d
-  bpe_path: ~/sam3/assets/bpe_simple_vocab_16e6.txt.gz
+  roboflow_vl_100_root: datasets
+  experiment_log_dir: datasets/logs/3d
+  bpe_path: assets/bpe_simple_vocab_16e6.txt.gz
 
 # Roboflow dataset configuration
 roboflow_train:
