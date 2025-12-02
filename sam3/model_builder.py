@@ -521,28 +521,56 @@ def _create_sam3_transformer(has_presence_token: bool = True) -> TransformerWrap
 
 
 def _load_checkpoint(model, checkpoint_path):
-    """Load model checkpoint from file."""
+    """Load model checkpoint from file.
+    
+    Handles two checkpoint formats:
+    1. HuggingFace format: keys have "detector." prefix (e.g., "detector.backbone.*")
+    2. Training checkpoint format: keys don't have prefix (e.g., "backbone.*")
+    """
     with g_pathmgr.open(checkpoint_path, "rb") as f:
         ckpt = torch.load(f, map_location="cpu", weights_only=True)
     if "model" in ckpt and isinstance(ckpt["model"], dict):
         ckpt = ckpt["model"]
-    sam3_image_ckpt = {
-        k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
-    }
-    if model.inst_interactive_predictor is not None:
-        sam3_image_ckpt.update(
-            {
-                k.replace("tracker.", "inst_interactive_predictor.model."): v
-                for k, v in ckpt.items()
-                if "tracker" in k
-            }
-        )
-    missing_keys, _ = model.load_state_dict(sam3_image_ckpt, strict=False)
+    
+    # Check if checkpoint uses HuggingFace format (has "detector." prefix)
+    has_detector_prefix = any("detector" in k for k in ckpt.keys())
+    
+    if has_detector_prefix:
+        # HuggingFace format: remove "detector." prefix
+        sam3_image_ckpt = {
+            k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
+        }
+        # Handle tracker keys if present
+        if model.inst_interactive_predictor is not None:
+            sam3_image_ckpt.update(
+                {
+                    k.replace("tracker.", "inst_interactive_predictor.model."): v
+                    for k, v in ckpt.items()
+                    if "tracker" in k
+                }
+            )
+    else:
+        # Training checkpoint format: use keys as-is (no prefix)
+        sam3_image_ckpt = dict(ckpt)
+        # Handle tracker keys if present (training checkpoints might have them)
+        if model.inst_interactive_predictor is not None:
+            tracker_keys = {k: v for k, v in ckpt.items() if "tracker" in k}
+            if tracker_keys:
+                sam3_image_ckpt.update(
+                    {
+                        k.replace("tracker.", "inst_interactive_predictor.model."): v
+                        for k, v in tracker_keys.items()
+                    }
+                )
+    
+    missing_keys, unexpected_keys = model.load_state_dict(sam3_image_ckpt, strict=False)
     if len(missing_keys) > 0:
         print(
             f"loaded {checkpoint_path} and found "
             f"missing and/or unexpected keys:\n{missing_keys=}"
         )
+    if len(unexpected_keys) > 0 and len(unexpected_keys) < 50:  # Only print if not too many
+        print(f"unexpected_keys (not loaded): {unexpected_keys}")
 
 
 def _setup_device_and_mode(model, device, eval_mode):

@@ -44,6 +44,67 @@ sys.path.insert(0, str(project_root))
 from sam3.model_builder import build_sam3_image_model
 from sam3.model.sam3_image_processor import Sam3Processor
 
+# Monkey-patch for pip-installed sam3: handle both checkpoint formats
+try:
+    from sam3.model_builder import _load_checkpoint as original_load_checkpoint
+    from iopath.common.file_io import g_pathmgr
+    
+    def patched_load_checkpoint(model, checkpoint_path):
+        """Patched version that handles both HuggingFace and training checkpoint formats."""
+        with g_pathmgr.open(checkpoint_path, "rb") as f:
+            ckpt = torch.load(f, map_location="cpu", weights_only=True)
+        if "model" in ckpt and isinstance(ckpt["model"], dict):
+            ckpt = ckpt["model"]
+        
+        # Check if checkpoint uses HuggingFace format (has "detector." prefix)
+        has_detector_prefix = any("detector" in k for k in ckpt.keys())
+        
+        if has_detector_prefix:
+            # HuggingFace format: remove "detector." prefix
+            sam3_image_ckpt = {
+                k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
+            }
+            # Handle tracker keys if present
+            if model.inst_interactive_predictor is not None:
+                sam3_image_ckpt.update(
+                    {
+                        k.replace("tracker.", "inst_interactive_predictor.model."): v
+                        for k, v in ckpt.items()
+                        if "tracker" in k
+                    }
+                )
+        else:
+            # Training checkpoint format: use keys as-is (no prefix)
+            sam3_image_ckpt = dict(ckpt)
+            # Handle tracker keys if present
+            if model.inst_interactive_predictor is not None:
+                tracker_keys = {k: v for k, v in ckpt.items() if "tracker" in k}
+                if tracker_keys:
+                    sam3_image_ckpt.update(
+                        {
+                            k.replace("tracker.", "inst_interactive_predictor.model."): v
+                            for k, v in tracker_keys.items()
+                        }
+                    )
+        
+        missing_keys, unexpected_keys = model.load_state_dict(sam3_image_ckpt, strict=False)
+        if len(missing_keys) > 0:
+            print(
+                f"loaded {checkpoint_path} and found "
+                f"missing and/or unexpected keys:\n{missing_keys=}"
+            )
+        if len(unexpected_keys) > 0 and len(unexpected_keys) < 50:
+            print(f"unexpected_keys (not loaded): {unexpected_keys}")
+    
+    # Apply monkey patch
+    import sam3.model_builder
+    sam3.model_builder._load_checkpoint = patched_load_checkpoint
+    print("[INFO] Applied checkpoint format compatibility patch (supports both HuggingFace and training formats)")
+except (ImportError, AttributeError) as e:
+    # If patching fails, it might be source code version or different structure
+    # User can use convert_checkpoint.py script instead
+    pass
+
 # Try to import cv2 for mask simplification
 try:
     import cv2

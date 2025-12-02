@@ -157,7 +157,7 @@ roboflow_train:
 # Different helper parameters and functions
 # ============================================================================
 scratch:
-  enable_segmentation: False # NOTE: This is the number of queries used for segmentation
+  enable_segmentation: True # NOTE: This is the number of queries used for segmentation
   # Model parameters
   d_model: 256
   pos_embed:
