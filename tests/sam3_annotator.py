@@ -2,6 +2,30 @@
 """
 SAM3 Annotator - Create mask images with segmented data.
 Supports multi-class segmentation with different colors per class.
+
+Usage:
+    # Process a single image or folder with default model
+    python sam3_annotator.py input_path [classes] [output_dir] [thresholds]
+    
+    # Process with custom model checkpoint (using flag - no need for all previous params)
+    python sam3_annotator.py input_path --checkpoint path/to/model.pt
+    python sam3_annotator.py input_path -c path/to/model.pt
+    
+    # Process with custom model checkpoint (positional - requires all previous params)
+    python sam3_annotator.py input_path [classes] [output_dir] [thresholds] [checkpoint_path]
+    
+Examples:
+    # Process folder with default HuggingFace model
+    python sam3_annotator.py tests/trees "tree, grass"
+    
+    # Process with custom trained model (easy way - using flag)
+    python sam3_annotator.py tests/trees --checkpoint ./models/my_custom_sam3.pt
+    
+    # Process with custom trained model and custom classes
+    python sam3_annotator.py tests/trees "tree, grass" --checkpoint ./models/my_custom_sam3.pt
+    
+    # Process with all parameters (positional)
+    python sam3_annotator.py tests/trees "tree, grass" output_masks 0.5 ./models/my_custom_sam3.pt
 """
 
 import os
@@ -68,20 +92,39 @@ class SAM3Annotator:
     Supports multi-class segmentation where each class gets a different color.
     """
     
-    def __init__(self, device: Optional[str] = None, confidence_threshold: float = 0.5):
+    def __init__(
+        self, 
+        device: Optional[str] = None, 
+        confidence_threshold: float = 0.5,
+        checkpoint_path: Optional[str] = None,
+        load_from_HF: bool = True
+    ):
         """
         Initialize SAM3 annotator.
         
         Args:
             device: Device to use ('cuda' or 'cpu'). Auto-detects if None.
             confidence_threshold: Minimum confidence score for detections.
+            checkpoint_path: Optional path to custom SAM3 model checkpoint.
+                           If None, will download from HuggingFace if load_from_HF is True.
+            load_from_HF: Whether to load from HuggingFace if checkpoint_path is None.
         """
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.confidence_threshold = confidence_threshold
         
         print(f"[INFO] Initializing SAM3 Annotator on device: {self.device}")
-        print("[INFO] Loading SAM3 model...")
-        self.model = build_sam3_image_model()
+        if checkpoint_path:
+            print(f"[INFO] Loading custom SAM3 model from: {checkpoint_path}")
+        elif load_from_HF:
+            print("[INFO] Loading SAM3 model from HuggingFace...")
+        else:
+            print("[INFO] Loading SAM3 model (no checkpoint specified)...")
+        
+        self.model = build_sam3_image_model(
+            checkpoint_path=checkpoint_path,
+            load_from_HF=load_from_HF,
+            device=self.device
+        )
         self.processor = Sam3Processor(
             self.model, 
             device=self.device, 
@@ -744,7 +787,9 @@ def annotate_multiclass(
     classes: str,
     output_dir: Optional[str] = None,
     confidence_threshold: float = 0.5,
-    class_thresholds: Optional[Dict[str, float]] = None
+    class_thresholds: Optional[Dict[str, float]] = None,
+    checkpoint_path: Optional[str] = None,
+    load_from_HF: bool = True
 ) -> Dict:
     """
     Convenience function to segment with multiple classes.
@@ -755,11 +800,17 @@ def annotate_multiclass(
         output_dir: Directory to save outputs.
         confidence_threshold: Default confidence threshold (used if class_thresholds not provided).
         class_thresholds: Dictionary mapping class names to confidence thresholds.
+        checkpoint_path: Optional path to custom SAM3 model checkpoint.
+        load_from_HF: Whether to load from HuggingFace if checkpoint_path is None.
         
     Returns:
         Dictionary with segmentation results and saved file paths.
     """
-    annotator = SAM3Annotator(confidence_threshold=confidence_threshold)
+    annotator = SAM3Annotator(
+        confidence_threshold=confidence_threshold,
+        checkpoint_path=checkpoint_path,
+        load_from_HF=load_from_HF
+    )
     result = annotator.segment_multiclass(image_path, classes, class_thresholds)
     saved_files = annotator.save_multiclass_outputs(result, output_dir)
     
@@ -872,16 +923,37 @@ def main():
     output_dir = None
     confidence = 0.5
     threshold_str = None
+    checkpoint_path = None
+    load_from_HF = True
     
     # Parse command line arguments
-    if len(sys.argv) > 1:
-        input_path = sys.argv[1]
-    if len(sys.argv) > 2:
-        classes = sys.argv[2]
-    if len(sys.argv) > 3:
-        output_dir = sys.argv[3]
-    if len(sys.argv) > 4:
-        threshold_str = sys.argv[4]
+    # Support both positional and flag-based arguments
+    args = sys.argv[1:]
+    
+    # Check for --checkpoint or -c flag
+    checkpoint_idx = None
+    for i, arg in enumerate(args):
+        if arg in ['--checkpoint', '-c', '--ckpt']:
+            if i + 1 < len(args):
+                checkpoint_path = args[i + 1]
+                load_from_HF = False
+                # Remove flag and value from args for positional parsing
+                checkpoint_idx = i
+                break
+    
+    # Remove checkpoint flag and value if found
+    if checkpoint_idx is not None:
+        args = args[:checkpoint_idx] + args[checkpoint_idx + 2:]
+    
+    # Parse positional arguments (after removing checkpoint flag)
+    if len(args) > 0:
+        input_path = args[0]
+    if len(args) > 1:
+        classes = args[1]
+    if len(args) > 2:
+        output_dir = args[2] if args[2] and args[2].strip() else None
+    if len(args) > 3:
+        threshold_str = args[3]
         # Try to parse as single float first
         try:
             confidence = float(threshold_str)
@@ -904,6 +976,10 @@ def main():
     print(f"[CONFIG] Found {len(image_files)} image file(s)")
     print(f"[CONFIG] Classes: '{classes}'")
     print(f"[CONFIG] Output dir: {output_dir or 'same as input'}")
+    if checkpoint_path:
+        print(f"[CONFIG] Model checkpoint: {checkpoint_path}")
+    else:
+        print(f"[CONFIG] Model: {'HuggingFace (default)' if load_from_HF else 'No checkpoint (untrained model)'}")
     
     # Parse class list
     class_list = [c.strip() for c in classes.split(",") if c.strip()]
@@ -920,7 +996,11 @@ def main():
     
     try:
         # Create annotator (only once for all images)
-        annotator = SAM3Annotator(confidence_threshold=confidence)
+        annotator = SAM3Annotator(
+            confidence_threshold=confidence,
+            checkpoint_path=checkpoint_path,
+            load_from_HF=load_from_HF
+        )
         
         # Process each image
         all_results = []
