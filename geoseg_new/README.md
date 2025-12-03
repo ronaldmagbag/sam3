@@ -218,4 +218,6 @@ python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./da
 python full_pipeline.py --osm-file data/osm/england.osm.pbf --output ./data/coco_dataset/england --zoom 18 --test-tiles 20 --feature-types all --enable-sam --use-sam2 --sam-model large --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A
 
 - sam3
-python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./data/coco_dataset/andorra --zoom 18 --test-tiles 500 --feature-types all --enable-sam --use-sam3 --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A
+python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./data/coco_dataset/andorra --zoom 18 --test-tiles 100 --feature-types all --enable-sam --use-sam3 --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A
+
+python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./data/coco_dataset/andorra --zoom 18 --feature-types all --enable-sam --use-sam3 --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A

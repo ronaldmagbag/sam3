@@ -487,14 +487,48 @@ colors = {colors_str}
             
         print(f"\n[Step 5] Running {sam_version} annotation for trees and grass...")
         
-        # Check if SAM masks already exist
-        sam_mask_count = 0
-        if self.sam_masks_dir.exists():
-            sam_mask_count = sum(1 for _ in self.sam_masks_dir.rglob("*.png"))
+        # Get all images from slippy map structure
+        images_list = []
+        zoom_dir = self.images_dir / str(self.zoom)
+        if zoom_dir.exists():
+            for x_dir in zoom_dir.iterdir():
+                if x_dir.is_dir():
+                    for img_file in x_dir.glob("*.*"):
+                        if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp']:
+                            images_list.append(img_file)
         
-        if sam_mask_count > 0:
-            print(f"  ⏭️  Skipping: {sam_version} masks already exist ({sam_mask_count} masks)")
+        if not images_list:
+            print("  ⚠️  No images found for SAM annotation")
             return str(self.sam_masks_dir)
+        
+        # Filter images: only process those that have OSM mask but no SAM mask
+        images_to_process = []
+        skipped_count = 0
+        for img_path in images_list:
+            # Create corresponding paths
+            rel_path = img_path.relative_to(self.images_dir)
+            osm_mask_path = self.masks_dir / rel_path.with_suffix('.png')
+            sam_mask_path = self.sam_masks_dir / rel_path.with_suffix('.png')
+            
+            # Only process if OSM mask exists and SAM mask doesn't exist
+            if osm_mask_path.exists() and not sam_mask_path.exists():
+                images_to_process.append(img_path)
+            elif sam_mask_path.exists():
+                skipped_count += 1
+        
+        # Report status
+        existing_sam_count = sum(1 for _ in self.sam_masks_dir.rglob("*.png")) if self.sam_masks_dir.exists() else 0
+        if existing_sam_count > 0:
+            print(f"  Found {existing_sam_count} existing SAM masks")
+        
+        if not images_to_process:
+            if skipped_count > 0:
+                print(f"  ⏭️  All {len(images_list)} images already have SAM masks")
+            else:
+                print(f"  ⚠️  No images with OSM masks found to process")
+            return str(self.sam_masks_dir)
+        
+        print(f"  Processing {len(images_to_process)} images (skipping {skipped_count} with existing SAM masks)")
         
         # Initialize appropriate annotator
         if use_sam3:
@@ -529,22 +563,6 @@ colors = {colors_str}
                 device=device
             )
         
-        # Get all images from slippy map structure
-        images_list = []
-        zoom_dir = self.images_dir / str(self.zoom)
-        if zoom_dir.exists():
-            for x_dir in zoom_dir.iterdir():
-                if x_dir.is_dir():
-                    for img_file in x_dir.glob("*.*"):
-                        if img_file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.webp']:
-                            images_list.append(img_file)
-        
-        if not images_list:
-            print("  ⚠️  No images found for SAM annotation")
-            return str(self.sam_masks_dir)
-        
-        print(f"  Found {len(images_list)} images to process")
-        
         # Pre-load the model (fail fast if it can't load)
         try:
             annotator.load_model()
@@ -556,16 +574,20 @@ colors = {colors_str}
         # Process images with progress
         from tqdm import tqdm
         processed = 0
-        with tqdm(images_list, ascii=True, unit="image") as pbar:
+        with tqdm(images_to_process, ascii=True, unit="image") as pbar:
             for img_path in pbar:
                 # Create corresponding output path maintaining structure
                 rel_path = img_path.relative_to(self.images_dir)
                 output_path = self.sam_masks_dir / rel_path.with_suffix('.png')
                 output_path.parent.mkdir(parents=True, exist_ok=True)
                 
-                # Find corresponding OSM mask if exists
+                # Find corresponding OSM mask (should exist since we filtered for it)
                 osm_mask_path = self.masks_dir / rel_path.with_suffix('.png')
                 existing_mask = str(osm_mask_path) if osm_mask_path.exists() else None
+                
+                # Double-check SAM mask doesn't exist (in case it was created between filtering and processing)
+                if output_path.exists():
+                    continue
                 
                 try:
                     annotator.annotate_image(
