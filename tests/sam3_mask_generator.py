@@ -162,6 +162,25 @@ def generate_masks(image_folder, text_prompt, checkpoint_path=None, score_thresh
             else:
                 mask_np = np.array(mask)
             
+            # Ensure mask is 2D (squeeze out any singleton dimensions)
+            # Handle shapes like [1, H, W], [H, W, 1], [H, W], etc.
+            while mask_np.ndim > 2:
+                mask_np = np.squeeze(mask_np)
+            
+            # If still not 2D, take first channel or flatten
+            if mask_np.ndim == 3:
+                # If shape is [H, W, C], take first channel
+                mask_np = mask_np[:, :, 0]
+            elif mask_np.ndim != 2:
+                # Fallback: reshape to 2D
+                print(f"[WARNING] Unexpected mask shape: {mask_np.shape}, reshaping...")
+                # Try to infer H and W from total size
+                total_size = mask_np.size
+                # Assume square-ish dimensions
+                h = int(np.sqrt(total_size))
+                w = total_size // h
+                mask_np = mask_np.reshape(h, w)
+            
             # Ensure mask is binary (0 or 255)
             if mask_np.dtype != np.uint8:
                 # Convert boolean or float to uint8
@@ -170,9 +189,9 @@ def generate_masks(image_folder, text_prompt, checkpoint_path=None, score_thresh
                 else:
                     mask_np = (mask_np > 127).astype(np.uint8) * 255
             
-            # Save mask as PNG
+            # Save mask as PNG (grayscale)
             mask_path = folder_path / f"{idx}.png"
-            mask_image = Image.fromarray(mask_np, mode="L")  # L mode for grayscale
+            mask_image = Image.fromarray(mask_np)  # PIL auto-detects grayscale from uint8 array
             mask_image.save(mask_path)
             
             score = scores[idx].item() if isinstance(scores[idx], torch.Tensor) else float(scores[idx])
