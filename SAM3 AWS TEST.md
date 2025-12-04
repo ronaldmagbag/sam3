@@ -1,6 +1,6 @@
 SAM3 AWS TEST
 
-ssh -i eks.pem ubuntu@ec2-18-207-218-133.compute-1.amazonaws.com
+ssh -i eks.pem ubuntu@ec2-54-87-137-237.compute-1.amazonaws.com
 
 git clone --recursive https://github.com/ronaldmagbag/sam3.git
 cd sam3
@@ -11,6 +11,7 @@ sudo apt-get update && sudo apt install -y python3-pip
 sudo apt install -y python3.12-venv
 python3.12 -m venv sam3env
 source sam3env/bin/activate
+source ../sam3/sam3env/bin/activate
 
 pip install --upgrade pip
 pip install torch==2.7.0 torchvision torchaudio --index-url https://download.pytorch.org/whl/cu126
@@ -23,6 +24,9 @@ hf auth login
 
 python sam3/train/train.py -c configs/roboflow_v100/aws_test.yaml --use-cluster 0 --num-gpus 1
 python tests/test_image_sam3.py tests/images/test.png "a building"
+
+
+aws s3 cp /path/to/folder s3://osm-data-export/sam3/ --recursive
 
 
 # Move pre-saved models to nvme

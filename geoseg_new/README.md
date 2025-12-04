@@ -221,3 +221,7 @@ python full_pipeline.py --osm-file data/osm/england.osm.pbf --output ./data/coco
 python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./data/coco_dataset/andorra --zoom 18 --test-tiles 100 --feature-types all --enable-sam --use-sam3 --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A
 
 python full_pipeline.py --osm-file data/osm/andorra-251126.osm.pbf --output ./data/coco_dataset/andorra --zoom 18 --feature-types all --enable-sam --use-sam3 --mapbox-token pk.eyJ1IjoiZXZlbnR1bWFpIiwiYSI6ImNtaTZ6ZnBnZDAzeXEyaXB5a3FkamFveG0ifQ.VGWd4ptbCI_DyBTMWU6R1A
+
+
+
+aws s3 cp andorra/coco_dataset s3://osm-data-export/sam3/ --recursive

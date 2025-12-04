@@ -16,3 +16,16 @@ python tests/sam3_annotator.py tests/images/18_132334_96778.png "road"
 python tests/sam3_annotator.py tests/images
 
 python tests/sam3_annotator.py tests/
+
+
+# Simplest - just input and checkpoint
+python tests/sam3_annotator.py tests/satellite/262747_173793.jpg --checkpoint ./datasets/logs/3d/checkpoints/checkpoint.pt
+
+python tests/sam3_annotator.py tests/satellite/262747_173793.jpg --checkpoint ./models/models--facebook--sam3/blobs/9999e2341ceef5e136daa386eecb55cb414446a00ac2b55eb2dfd2f7c3cf8c9e
+
+
+# With classes
+python sam3_annotator.py tests/trees "tree, grass" --checkpoint ./models/custom.pt
+
+# With output directory
+python sam3_annotator.py tests/trees "tree, grass" output_dir --checkpoint ./models/custom.pt

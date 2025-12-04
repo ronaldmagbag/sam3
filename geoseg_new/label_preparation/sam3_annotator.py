@@ -10,6 +10,83 @@ from PIL import Image
 from typing import Tuple, Optional, List, Dict
 from pathlib import Path
 
+# Monkey-patch to filter out SAM2-specific keys from checkpoint loading warnings
+try:
+    from sam3.model_builder import _load_checkpoint as original_load_checkpoint
+    from iopath.common.file_io import g_pathmgr
+    import torch
+    
+    def patched_load_checkpoint(model, checkpoint_path):
+        """Patched version that filters out known SAM2-specific keys from warnings."""
+        with g_pathmgr.open(checkpoint_path, "rb") as f:
+            ckpt = torch.load(f, map_location="cpu", weights_only=True)
+        if "model" in ckpt and isinstance(ckpt["model"], dict):
+            ckpt = ckpt["model"]
+        
+        # Check if checkpoint uses HuggingFace format (has "detector." prefix)
+        has_detector_prefix = any("detector" in k for k in ckpt.keys())
+        
+        if has_detector_prefix:
+            # HuggingFace format: remove "detector." prefix
+            sam3_image_ckpt = {
+                k.replace("detector.", ""): v for k, v in ckpt.items() if "detector" in k
+            }
+            # Handle tracker keys if present
+            if model.inst_interactive_predictor is not None:
+                sam3_image_ckpt.update(
+                    {
+                        k.replace("tracker.", "inst_interactive_predictor.model."): v
+                        for k, v in ckpt.items()
+                        if "tracker" in k
+                    }
+                )
+        else:
+            # Training checkpoint format: use keys as-is (no prefix)
+            sam3_image_ckpt = dict(ckpt)
+            # Handle tracker keys if present
+            if model.inst_interactive_predictor is not None:
+                tracker_keys = {k: v for k, v in ckpt.items() if "tracker" in k}
+                if tracker_keys:
+                    sam3_image_ckpt.update(
+                        {
+                            k.replace("tracker.", "inst_interactive_predictor.model."): v
+                            for k, v in tracker_keys.items()
+                        }
+                    )
+        
+        missing_keys, unexpected_keys = model.load_state_dict(sam3_image_ckpt, strict=False)
+        
+        # Filter out known SAM2-specific keys (these are harmless and expected)
+        sam2_key_patterns = [
+            "sam2_convs",  # SAM2-specific convolutions
+            "dconv_2x2",   # SAM2 dilated convolutions
+        ]
+        filtered_unexpected = [
+            k for k in unexpected_keys 
+            if not any(pattern in k for pattern in sam2_key_patterns)
+        ]
+        
+        # Only print warnings for truly unexpected keys (not SAM2-specific)
+        if len(missing_keys) > 0:
+            print(
+                f"loaded {checkpoint_path} and found "
+                f"missing keys:\n{missing_keys=}"
+            )
+        if len(filtered_unexpected) > 0 and len(filtered_unexpected) < 50:
+            print(f"unexpected_keys (not loaded): {filtered_unexpected}")
+        elif len(unexpected_keys) > len(filtered_unexpected):
+            # Only show count if we filtered out SAM2 keys
+            sam2_filtered_count = len(unexpected_keys) - len(filtered_unexpected)
+            if sam2_filtered_count > 0:
+                print(f"Note: {sam2_filtered_count} SAM2-specific keys were filtered (expected, harmless)")
+    
+    # Apply monkey patch
+    import sam3.model_builder
+    sam3.model_builder._load_checkpoint = patched_load_checkpoint
+except (ImportError, AttributeError):
+    # If patching fails, continue without it (checkpoint loading will use default behavior)
+    pass
+
 # Color mapping for SAM3 mask visualization (RGB values)
 # Background matches OSM masks, Tree and Grass have distinct visible colors
 SAM3_CLASS_COLORS = {
