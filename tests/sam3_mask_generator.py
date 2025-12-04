@@ -150,17 +150,24 @@ def generate_masks(image_folder, text_prompt, checkpoint_path=None, score_thresh
             boxes = boxes[valid_indices]
             print(f"[INFO] Filtered to {len(masks)} mask(s) with score >= {score_threshold}")
         
-        # Convert masks to numpy and save
+        # Create masks subfolder inside image folder
         folder_path = Path(image_folder)
+        masks_folder = folder_path / "masks"
+        masks_folder.mkdir(parents=True, exist_ok=True)
+        
         saved_count = 0
         
-        print(f"[INFO] Saving masks to {folder_path}...")
+        print(f"[INFO] Saving masks to {masks_folder}...")
         for idx, mask in enumerate(masks):
             # Convert mask tensor to numpy array
             if isinstance(mask, torch.Tensor):
                 mask_np = mask.cpu().numpy()
             else:
                 mask_np = np.array(mask)
+            
+            # Debug: print original shape
+            original_shape = mask_np.shape
+            print(f"[DEBUG] Mask {idx} original shape: {original_shape}, dtype: {mask_np.dtype}")
             
             # Ensure mask is 2D (squeeze out any singleton dimensions)
             # Handle shapes like [1, H, W], [H, W, 1], [H, W], etc.
@@ -181,18 +188,67 @@ def generate_masks(image_folder, text_prompt, checkpoint_path=None, score_thresh
                 w = total_size // h
                 mask_np = mask_np.reshape(h, w)
             
-            # Ensure mask is binary (0 or 255)
-            if mask_np.dtype != np.uint8:
-                # Convert boolean or float to uint8
-                if mask_np.max() <= 1.0:
-                    mask_np = (mask_np > 0.5).astype(np.uint8) * 255
-                else:
-                    mask_np = (mask_np > 127).astype(np.uint8) * 255
+            print(f"[DEBUG] Mask {idx} after processing: shape={mask_np.shape}, dtype={mask_np.dtype}, min={mask_np.min()}, max={mask_np.max()}")
             
-            # Save mask as PNG (grayscale)
-            mask_path = folder_path / f"{idx}.png"
-            mask_image = Image.fromarray(mask_np)  # PIL auto-detects grayscale from uint8 array
-            mask_image.save(mask_path)
+            # Convert to boolean first, then to uint8 (0 or 255)
+            # This ensures proper binary mask format
+            if mask_np.dtype == bool:
+                mask_np = mask_np.astype(np.uint8) * 255
+            elif mask_np.dtype in [np.float32, np.float64]:
+                # Float masks: threshold at 0.5
+                mask_np = (mask_np > 0.5).astype(np.uint8) * 255
+            else:
+                # Integer masks: threshold at 127
+                mask_np = (mask_np > 127).astype(np.uint8) * 255
+            
+            # Ensure values are exactly 0 or 255
+            mask_np = np.clip(mask_np, 0, 255).astype(np.uint8)
+            
+            # Verify it's 2D and uint8
+            assert mask_np.ndim == 2, f"Mask {idx} must be 2D, got shape {mask_np.shape}"
+            assert mask_np.dtype == np.uint8, f"Mask {idx} must be uint8, got {mask_np.dtype}"
+            
+            # Save mask as PNG (grayscale, mode='L') in masks/ subfolder
+            mask_path = masks_folder / f"{idx}.png"
+            
+            # Create PIL Image explicitly as grayscale
+            try:
+                # Ensure array is contiguous and properly formatted
+                if not mask_np.flags['C_CONTIGUOUS']:
+                    mask_np = np.ascontiguousarray(mask_np)
+                
+                mask_image = Image.fromarray(mask_np, mode='L')
+                
+                # Verify the image mode
+                if mask_image.mode != 'L':
+                    print(f"[WARNING] Mask {idx} mode is {mask_image.mode}, converting to 'L'")
+                    mask_image = mask_image.convert('L')
+                    
+            except Exception as e:
+                print(f"[ERROR] Failed to create PIL Image from mask {idx}: {e}")
+                print(f"  Shape: {mask_np.shape}, dtype: {mask_np.dtype}, min: {mask_np.min()}, max: {mask_np.max()}")
+                continue
+            
+            # Save with PNG format explicitly - use optimize=False for maximum compatibility
+            try:
+                # Save with explicit format and ensure it's a valid PNG
+                mask_image.save(mask_path, format='PNG', optimize=False)
+                
+                # Force close to ensure file is written
+                mask_image.close()
+                
+            except Exception as e:
+                print(f"[ERROR] Failed to save mask {idx} to {mask_path}: {e}")
+                continue
+            
+            # Verify the saved file is valid and can be reopened
+            try:
+                verify_image = Image.open(mask_path)
+                verify_array = np.array(verify_image)
+                verify_image.close()
+                print(f"[DEBUG] Verified mask {idx}: file size={mask_path.stat().st_size} bytes, shape={verify_array.shape}")
+            except Exception as e:
+                print(f"[WARNING] Saved mask {idx} verification failed: {e}")
             
             score = scores[idx].item() if isinstance(scores[idx], torch.Tensor) else float(scores[idx])
             print(f"  ✓ Saved mask {idx}: {mask_path.name} (score: {score:.4f})")
