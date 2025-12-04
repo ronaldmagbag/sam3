@@ -25,6 +25,7 @@ models/
 .installed.cfg
 *.egg
 MANIFEST
+sam3env/
 
 tests/flat/
 tests/images/

@@ -29,3 +29,21 @@ python sam3_annotator.py tests/trees "tree, grass" --checkpoint ./models/custom.
 
 # With output directory
 python sam3_annotator.py tests/trees "tree, grass" output_dir --checkpoint ./models/custom.pt
+
+
+
+# sam3_mask_generator
+python sam3_mask_generator.py <image_folder> <text_prompt>
+
+# Examples
+python sam3_mask_generator.py ./images "a building"
+python sam3_mask_generator.py /path/to/folder "a human"
+python sam3_mask_generator.py ./images "a chair"
+
+# With score threshold (only keep masks with score >= 0.5)
+python sam3_mask_generator.py ./images "a building" --score-threshold 0.5
+
+# With custom checkpoint
+python sam3_mask_generator.py ./images "a building" --checkpoint ./models/sam3.pt
+
+python .\tests\sam3_mask_generator.py .\tests\images\20_525636_347626_768\ "a building"
