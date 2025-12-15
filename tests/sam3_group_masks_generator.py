@@ -347,6 +347,7 @@ def generate_masks(image_folder, text_prompts, checkpoint_path=None, score_thres
         print("-" * 60)
         
         all_merged_masks = {}  # Store all merged masks for background calculation
+        current_index = 0  # Sequential naming for merged outputs
         
         for prompt_idx, (prompt, masks) in enumerate(prompt_masks.items()):
             print(f"[INFO] Merging {len(masks)} mask(s) for prompt '{prompt}'...")
@@ -355,22 +356,14 @@ def generate_masks(image_folder, text_prompts, checkpoint_path=None, score_thres
             merged_mask = merge_masks(masks, target_shape)
             all_merged_masks[prompt] = merged_mask
             
-            # Create filename from prompt (sanitize for filesystem)
-            # Remove "a " prefix if present, replace spaces and special chars with underscores
-            filename = prompt.strip().lower()
-            if filename.startswith("a "):
-                filename = filename[2:]
-            filename = filename.replace(" ", "_").replace(",", "").replace(".", "")
-            filename = "".join(c for c in filename if c.isalnum() or c in ("_", "-"))
-            if not filename:
-                filename = f"prompt_{prompt_idx}"
-            
-            mask_path = masks_folder / f"{filename}_merged.png"
+            mask_path = masks_folder / f"{current_index}.png"
             
             if save_mask_image(merged_mask, mask_path):
-                print(f"  ✓ Saved merged mask: {mask_path.name}")
+                print(f"  ✓ Saved merged mask for '{prompt}': {mask_path.name}")
             else:
                 print(f"  ✗ Failed to save merged mask: {mask_path.name}")
+            
+            current_index += 1
         
         # Create background mask (entire image minus all object masks)
         print()
@@ -385,7 +378,7 @@ def generate_masks(image_folder, text_prompts, checkpoint_path=None, score_thres
         # Background is inverse of combined objects
         background_mask = (255 - combined_objects).astype(np.uint8)
         
-        background_path = masks_folder / "background.png"
+        background_path = masks_folder / f"{current_index}.png"
         if save_mask_image(background_mask, background_path):
             print(f"  ✓ Saved background mask: {background_path.name}")
         else:
@@ -394,8 +387,8 @@ def generate_masks(image_folder, text_prompts, checkpoint_path=None, score_thres
         print()
         print("=" * 60)
         print(f"[SUCCESS] Generated and saved {len(all_merged_masks)} merged mask(s) + 1 background mask")
-        print(f"  - Merged masks: {', '.join([f'{p}_merged.png' for p in all_merged_masks.keys()])}")
-        print(f"  - Background mask: background.png")
+        print(f"  - Merged masks: 0.png ... {current_index - 1}.png")
+        print(f"  - Background mask: {current_index}.png")
         print("=" * 60)
         
         return len(all_merged_masks) + 1
