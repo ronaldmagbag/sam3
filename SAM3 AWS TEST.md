@@ -1,6 +1,6 @@
 SAM3 AWS TEST
 
-ssh -i eks.pem ubuntu@ec2-54-87-137-237.compute-1.amazonaws.com
+ssh -i eks.pem ubuntu@ec2-100-30-197-172.compute-1.amazonaws.com
 
 git clone --recursive https://github.com/ronaldmagbag/sam3.git
 cd sam3
@@ -25,8 +25,11 @@ hf auth login
 python sam3/train/train.py -c configs/roboflow_v100/aws_test.yaml --use-cluster 0 --num-gpus 1
 python tests/test_image_sam3.py tests/images/test.png "a building"
 
+python tests/sam3_mask_generator.py ~/test/ "a tree"
+
 
 aws s3 cp /path/to/folder s3://osm-data-export/sam3/ --recursive
+aws s3 cp ~/test/geo_test_images s3://osm-data-export/sam-3d-objects/ --recursive
 
 
 # Move pre-saved models to nvme
